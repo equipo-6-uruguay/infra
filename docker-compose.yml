@@ -47,7 +47,11 @@ services:
 
   # --- Ticket Service ---
   ticket-service:
-    image: ghcr.io/equipo-6-uruguay/backend-ticket-service:${TICKET_IMAGE_TAG:-develop}
+    build:
+      context: ../backend-ticket-service
+      dockerfile: Dockerfile
+    # image: ghcr.io/equipo-6-uruguay/backend-ticket-service:${TICKET_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-ticket-service
     environment:
       TICKET_SERVICE_SECRET_KEY: ${TICKET_SERVICE_SECRET_KEY:-changeme-ticket-secret}
@@ -76,6 +80,7 @@ services:
   # --- Users Service ---
   users-service:
     image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-users-service
     environment:
       USER_SERVICE_SECRET_KEY: ${USER_SERVICE_SECRET_KEY:-changeme-users-secret}
@@ -107,6 +112,7 @@ services:
   # --- Users Consumer (RabbitMQ) ---
   users-consumer:
     image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-users-consumer
     command: python users/messaging/consumer.py
     environment:
@@ -153,6 +159,7 @@ services:
   # --- Notification Service ---
   notification-service:
     image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-notification-service
     environment:
       NOTIFICATION_SERVICE_SECRET_KEY: ${NOTIFICATION_SERVICE_SECRET_KEY:-changeme-notif-secret}
@@ -185,6 +192,7 @@ services:
   # --- Notification Consumer (RabbitMQ) ---
   notification-consumer:
     image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-notification-consumer
     command: python -m notifications.messaging.consumer
     environment:
@@ -233,6 +241,7 @@ services:
   # --- Assignment Service ---
   assignment-service:
     image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-assignment-service
     environment:
       ASSIGNMENT_SERVICE_SECRET_KEY: ${ASSIGNMENT_SERVICE_SECRET_KEY:-changeme-assignment-secret}
@@ -264,6 +273,7 @@ services:
   # --- Assignment Consumer (RabbitMQ) ---
   assignment-consumer:
     image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-assignment-consumer
     command: python messaging/consumer.py
     environment:
@@ -292,10 +302,13 @@ services:
   # --- Assignment Celery Worker ---
   assignment-celery:
     image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    platform: linux/amd64
     container_name: infra-assignment-celery
     command: celery -A assessment_service worker --loglevel=info
     environment:
       ASSIGNMENT_SERVICE_SECRET_KEY: ${ASSIGNMENT_SERVICE_SECRET_KEY:-changeme-assignment-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
 
       POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
       POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
@@ -314,6 +327,7 @@ services:
   # --- Frontend ---
   frontend:
     image: ghcr.io/equipo-6-uruguay/frontend:${FRONTEND_IMAGE_TAG:-main}
+    platform: linux/amd64
     container_name: infra-frontend
     ports:
       - "3000:80"
