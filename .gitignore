@@ -1,0 +1,10 @@
+# Secrets
+.env
+
+# OS
+.DS_Store
+
+TODO_DEVS.md
+
+SERVICES_SUMMARY.md
+
