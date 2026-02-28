@@ -47,10 +47,10 @@ services:
 
   # --- Ticket Service ---
   ticket-service:
-  image: ghcr.io/equipo-6-uruguay/backend-ticket-service:${TICKET_IMAGE_TAG:-main}
-  platform: linux/amd64
-  container_name: infra-ticket-service
-  environment:
+    image: ghcr.io/equipo-6-uruguay/backend-ticket-service:${TICKET_IMAGE_TAG:-main}
+    platform: linux/amd64
+    container_name: infra-ticket-service
+    environment:
       TICKET_SERVICE_SECRET_KEY: ${TICKET_SERVICE_SECRET_KEY:-changeme-ticket-secret}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -65,15 +65,17 @@ services:
       RABBITMQ_EXCHANGE_NAME: ${TICKET_RABBITMQ_EXCHANGE_NAME:-tickets}
 
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
-  depends_on:
+
+    depends_on:
       db:
         condition: service_healthy
       rabbitmq:
         condition: service_started
-  ports:
-      - "8000:8000"
-  restart: unless-stopped
 
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
   # --- Users Service ---
   users-service:
     image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
