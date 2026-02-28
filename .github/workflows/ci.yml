@@ -1,0 +1,74 @@
+name: Infra CI
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  validate-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose syntax
+        run: |
+          # Creamos un .env temporal a partir del example para que config no falle por variables faltantes
+          cp .env.example .env
+          docker compose config -q
+          
+  smoke-test:
+    runs-on: ubuntu-latest
+    needs: validate-compose
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          # Usamos el GITHUB_TOKEN provisto automáticamente por GitHub Actions
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create .env file
+        run: cp .env.example .env
+
+      - name: Pull images
+        run: docker compose pull
+
+      - name: Start services (Smoke Test)
+        run: |
+          # Levantamos todo en detach mode
+          docker compose up -d
+          
+          # Esperamos unos segundos para ver si algún contenedor crashea inmediatamente
+          sleep 10
+          
+      - name: Check container status
+        run: |
+          # Revisamos si hay contenedores que no estén 'Up'
+          echo "=== Container Status ==="
+          docker compose ps
+          
+          # Si algún contenedor salió (Exited), fallamos el CI
+          EXITED=$(docker compose ps -q | xargs docker inspect -f '{{ .State.Status }}' | grep -v "running" || true)
+          if [ ! -z "$EXITED" ]; then
+            echo "❌ Fallo: Algunos contenedores no están corriendo."
+            echo "=== Logs ==="
+            docker compose logs
+            exit 1
+          else
+            echo "✅ Todo en orden, contenedores corriendo."
+          fi
+
+      - name: Stop services
+        if: always()
+        run: docker compose down -v

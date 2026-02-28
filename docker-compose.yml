@@ -1,0 +1,344 @@
+version: "3.9"
+
+services:
+  # --- RabbitMQ ---
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: infra-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  # --- Ticket DB ---
+  db:
+    image: postgres:16-alpine
+    container_name: infra-ticket-db
+    environment:
+      POSTGRES_DB: ${TICKET_POSTGRES_DB:-sistema_tickets}
+      POSTGRES_USER: ${TICKET_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${TICKET_POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - ticket_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TICKET_POSTGRES_USER:-postgres} -d ${TICKET_POSTGRES_DB:-sistema_tickets}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Users DB ---
+  users-db:
+    image: postgres:16-alpine
+    container_name: infra-users-db
+    environment:
+      POSTGRES_DB: ${USERS_POSTGRES_DB:-users_db}
+      POSTGRES_USER: ${USERS_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${USERS_POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5435:5432"
+    volumes:
+      - users_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${USERS_POSTGRES_USER:-postgres} -d ${USERS_POSTGRES_DB:-users_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Ticket Service ---
+  ticket-service:
+    image: ghcr.io/equipo-6-uruguay/backend-ticket-service:${TICKET_IMAGE_TAG:-main}
+    platform: linux/amd64
+    container_name: infra-ticket-service
+    environment:
+      TICKET_SERVICE_SECRET_KEY: ${TICKET_SERVICE_SECRET_KEY:-changeme-ticket-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${TICKET_POSTGRES_DB:-sistema_tickets}
+      POSTGRES_USER: ${TICKET_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${TICKET_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_EXCHANGE_NAME: ${TICKET_RABBITMQ_EXCHANGE_NAME:-tickets}
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
+  # --- Users Service ---
+  users-service:
+    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-users-service
+    environment:
+      USER_SERVICE_SECRET_KEY: ${USER_SERVICE_SECRET_KEY:-changeme-users-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${USERS_POSTGRES_DB:-users_db}
+      POSTGRES_USER: ${USERS_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${USERS_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: users-db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+
+      # Opcionales
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:5173}
+    depends_on:
+      users-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    # OJO: users escucha 8001 adentro, pero lo exponemos como 8003 afuera para matchear frontend.
+    ports:
+      - "8003:8001"
+    restart: unless-stopped
+
+  # --- Users Consumer (RabbitMQ) ---
+  users-consumer:
+    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-users-consumer
+    command: python users/messaging/consumer.py
+    environment:
+      USER_SERVICE_SECRET_KEY: ${USER_SERVICE_SECRET_KEY:-changeme-users-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${USERS_POSTGRES_DB:-users_db}
+      POSTGRES_USER: ${USERS_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${USERS_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: users-db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_EXCHANGE_NAME: ${USERS_RABBITMQ_EXCHANGE_NAME:-tickets}
+      RABBITMQ_QUEUE_USERS: ${USERS_RABBITMQ_QUEUE_USERS:-users_queue}
+    depends_on:
+      users-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      users-service:
+        condition: service_started
+    restart: on-failure
+
+  # --- Notification DB ---
+  notification-db:
+    image: postgres:16-alpine
+    container_name: infra-notification-db
+    environment:
+      POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notifications_db}
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notif_user}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD:-notif_pass}
+    ports:
+      - "5434:5432"
+    volumes:
+      - notification_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOTIFICATION_POSTGRES_USER:-notif_user} -d ${NOTIFICATION_POSTGRES_DB:-notifications_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Notification Service ---
+  notification-service:
+    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-notification-service
+    environment:
+      NOTIFICATION_SERVICE_SECRET_KEY: ${NOTIFICATION_SERVICE_SECRET_KEY:-changeme-notif-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notifications_db}
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notif_user}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD:-notif_pass}
+      POSTGRES_HOST: notification-db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_EXCHANGE_NAME: ${NOTIFICATION_RABBITMQ_EXCHANGE_NAME:-tickets}
+      RABBITMQ_QUEUE_NOTIFICATION: ${NOTIFICATION_RABBITMQ_QUEUE:-notification_queue}
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:5173}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  # --- Notification Consumer (RabbitMQ) ---
+  notification-consumer:
+    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-notification-consumer
+    command: python -m notifications.messaging.consumer
+    environment:
+      NOTIFICATION_SERVICE_SECRET_KEY: ${NOTIFICATION_SERVICE_SECRET_KEY:-changeme-notif-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notifications_db}
+      POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notif_user}
+      POSTGRES_PASSWORD: ${NOTIFICATION_POSTGRES_PASSWORD:-notif_pass}
+      POSTGRES_HOST: notification-db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_EXCHANGE_NAME: ${NOTIFICATION_RABBITMQ_EXCHANGE_NAME:-tickets}
+      RABBITMQ_QUEUE_NOTIFICATION: ${NOTIFICATION_RABBITMQ_QUEUE:-notification_queue}
+    depends_on:
+      notification-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    restart: on-failure
+
+  # --- Assignment DB ---
+  assignment-db:
+    image: postgres:16-alpine
+    container_name: infra-assignment-db
+    environment:
+      POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
+      POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
+      POSTGRES_PASSWORD: ${ASSIGNMENT_POSTGRES_PASSWORD:-assignment_pass}
+    ports:
+      - "5433:5432"
+    volumes:
+      - assignment_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ASSIGNMENT_POSTGRES_USER:-assignment_user} -d ${ASSIGNMENT_POSTGRES_DB:-assignment_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- Assignment Service ---
+  assignment-service:
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-assignment-service
+    environment:
+      ASSIGNMENT_SERVICE_SECRET_KEY: ${ASSIGNMENT_SERVICE_SECRET_KEY:-changeme-assignment-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
+      POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
+      POSTGRES_PASSWORD: ${ASSIGNMENT_POSTGRES_PASSWORD:-assignment_pass}
+      POSTGRES_HOST: assignment-db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_EXCHANGE_NAME: ${ASSIGNMENT_RABBITMQ_EXCHANGE_NAME:-tickets}
+      RABBITMQ_QUEUE_ASSIGNMENT: ${ASSIGNMENT_RABBITMQ_QUEUE:-assignment_queue}
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:5173}
+    depends_on:
+      assignment-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    ports:
+      - "8002:8001"
+    restart: unless-stopped
+
+  # --- Assignment Consumer (RabbitMQ) ---
+  assignment-consumer:
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-assignment-consumer
+    command: python messaging/consumer.py
+    environment:
+      ASSIGNMENT_SERVICE_SECRET_KEY: ${ASSIGNMENT_SERVICE_SECRET_KEY:-changeme-assignment-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
+      POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
+      POSTGRES_PASSWORD: ${ASSIGNMENT_POSTGRES_PASSWORD:-assignment_pass}
+      POSTGRES_HOST: assignment-db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_EXCHANGE_NAME: ${ASSIGNMENT_RABBITMQ_EXCHANGE_NAME:-tickets}
+      RABBITMQ_QUEUE_ASSIGNMENT: ${ASSIGNMENT_RABBITMQ_QUEUE:-assignment_queue}
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+    depends_on:
+      assignment-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      assignment-service:
+        condition: service_started
+    restart: on-failure
+
+  # --- Assignment Celery Worker ---
+  assignment-celery:
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    platform: linux/amd64
+    container_name: infra-assignment-celery
+    command: celery -A assessment_service worker --loglevel=info
+    environment:
+      ASSIGNMENT_SERVICE_SECRET_KEY: ${ASSIGNMENT_SERVICE_SECRET_KEY:-changeme-assignment-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+
+      POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
+      POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
+      POSTGRES_PASSWORD: ${ASSIGNMENT_POSTGRES_PASSWORD:-assignment_pass}
+      POSTGRES_HOST: assignment-db
+      POSTGRES_PORT: "5432"
+
+      CELERY_BROKER_URL: amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672//
+    depends_on:
+      assignment-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    restart: on-failure
+
+  # --- Frontend ---
+  frontend:
+    image: ghcr.io/equipo-6-uruguay/frontend:${FRONTEND_IMAGE_TAG:-main}
+    platform: linux/amd64
+    container_name: infra-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - ticket-service
+      - users-service
+      - notification-service
+      - assignment-service
+    restart: unless-stopped
+
+volumes:
+  ticket_db_data:
+  users_db_data:
+  notification_db_data:
+  assignment_db_data:
