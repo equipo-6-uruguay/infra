@@ -8,6 +8,11 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # --- Ticket DB ---
   db:
@@ -70,7 +75,7 @@ services:
       db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
 
     ports:
       - "8000:8000"
@@ -102,7 +107,7 @@ services:
       users-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     # OJO: users escucha 8001 adentro, pero lo exponemos como 8003 afuera para matchear frontend.
     ports:
       - "8003:8001"
@@ -132,7 +137,7 @@ services:
       users-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       users-service:
         condition: service_started
     restart: on-failure
@@ -183,7 +188,7 @@ services:
       notification-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8001:8001"
     restart: unless-stopped
@@ -214,7 +219,7 @@ services:
       notification-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       notification-service:
         condition: service_started
     healthcheck:
@@ -269,7 +274,7 @@ services:
       assignment-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8002:8001"
     restart: unless-stopped
@@ -298,7 +303,7 @@ services:
       assignment-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       assignment-service:
         condition: service_started
     restart: on-failure
@@ -325,7 +330,7 @@ services:
       assignment-db:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
     restart: on-failure
 
   # --- Frontend ---
