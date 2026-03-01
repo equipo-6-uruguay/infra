@@ -46,11 +46,8 @@ jobs:
 
       - name: Start services (Smoke Test)
         run: |
-          # Levantamos todo en detach mode
-          docker compose up -d
-          
-          # Esperamos unos segundos para ver si algún contenedor crashea inmediatamente
-          sleep 10
+          # Levantamos todo y esperamos a que los healthchecks pasen (hasta 120s)
+          docker compose up -d --wait --wait-timeout 120
           
       - name: Check container status
         run: |
@@ -59,11 +56,11 @@ jobs:
           docker compose ps
           
           # Si algún contenedor salió (Exited), fallamos el CI
-          EXITED=$(docker compose ps -q | xargs docker inspect -f '{{ .State.Status }}' | grep -v "running" || true)
-          if [ ! -z "$EXITED" ]; then
+          EXITED=$(docker compose ps -q | xargs docker inspect -f '{{ .State.Status }}' | grep -c -v "running" || true)
+          if [ "$EXITED" -gt "0" ]; then
             echo "❌ Fallo: Algunos contenedores no están corriendo."
             echo "=== Logs ==="
-            docker compose logs
+            docker compose logs --tail=50
             exit 1
           else
             echo "✅ Todo en orden, contenedores corriendo."
