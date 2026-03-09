@@ -18,6 +18,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: infra-ticket-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${TICKET_POSTGRES_DB:-sistema_tickets}
       POSTGRES_USER: ${TICKET_POSTGRES_USER:-postgres}
@@ -36,6 +37,7 @@ services:
   users-db:
     image: postgres:16-alpine
     container_name: infra-users-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${USERS_POSTGRES_DB:-users_db}
       POSTGRES_USER: ${USERS_POSTGRES_USER:-postgres}
@@ -81,9 +83,39 @@ services:
       - "8000:8000"
 
     restart: unless-stopped
+
+  # --- Ticket Consumer (RabbitMQ) ---
+  ticket-consumer:
+    image: ghcr.io/equipo-6-uruguay/backend-ticket-service:${TICKET_IMAGE_TAG:-main}
+    platform: linux/amd64
+    container_name: infra-ticket-consumer
+    command: python tickets/messaging/consumer.py
+    environment:
+      TICKET_SERVICE_SECRET_KEY: ${TICKET_SERVICE_SECRET_KEY:-changeme-ticket-secret}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-changeme-jwt-secret}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+
+      POSTGRES_DB: ${TICKET_POSTGRES_DB:-sistema_tickets}
+      POSTGRES_USER: ${TICKET_POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${TICKET_POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_EXCHANGE_NAME: ${TICKET_RABBITMQ_EXCHANGE_NAME:-tickets}
+      RABBITMQ_QUEUE_TICKETS: ${TICKET_RABBITMQ_QUEUE_TICKETS:-tickets_queue}
+
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ticket-service:
+        condition: service_started
+    restart: unless-stopped
   # --- Users Service ---
   users-service:
-    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-users-service
     environment:
@@ -115,7 +147,7 @@ services:
 
   # --- Users Consumer (RabbitMQ) ---
   users-consumer:
-    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-users-consumer
     command: python users/messaging/consumer.py
@@ -146,6 +178,7 @@ services:
   notification-db:
     image: postgres:16-alpine
     container_name: infra-notification-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notifications_db}
       POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notif_user}
@@ -162,7 +195,7 @@ services:
 
   # --- Notification Service ---
   notification-service:
-    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-notification-service
     environment:
@@ -195,7 +228,7 @@ services:
 
   # --- Notification Consumer (RabbitMQ) ---
   notification-consumer:
-    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-notification-consumer
     command: python -m notifications.messaging.consumer
@@ -233,6 +266,7 @@ services:
   assignment-db:
     image: postgres:16-alpine
     container_name: infra-assignment-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
       POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
@@ -249,7 +283,7 @@ services:
 
   # --- Assignment Service ---
   assignment-service:
-    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-assignment-service
     environment:
@@ -281,7 +315,7 @@ services:
 
   # --- Assignment Consumer (RabbitMQ) ---
   assignment-consumer:
-    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-assignment-consumer
     command: python messaging/consumer.py
@@ -310,7 +344,7 @@ services:
 
   # --- Assignment Celery Worker ---
   assignment-celery:
-    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-assignment-celery
     command: celery -A assessment_service worker --loglevel=info
