@@ -66,13 +66,13 @@ El compose levanta **14 contenedores**:
 
 ## Image Tags
 
-Por defecto usa `develop` para backends y `main` para frontend. Para la demo, podés fijar tags específicos en `.env`:
+Por defecto usa `main` para todos los servicios. Si querés probar otro build, podés fijar tags específicos en `.env`:
 
 ```bash
-TICKET_IMAGE_TAG=sha-abc1234
-USERS_IMAGE_TAG=latest
-NOTIFICATION_IMAGE_TAG=develop
-ASSIGNMENT_IMAGE_TAG=develop
+TICKET_IMAGE_TAG=main
+USERS_IMAGE_TAG=main
+NOTIFICATION_IMAGE_TAG=main
+ASSIGNMENT_IMAGE_TAG=main
 FRONTEND_IMAGE_TAG=main
 ```
 
