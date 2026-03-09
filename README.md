@@ -28,6 +28,14 @@ docker-compose down
 docker-compose down -v
 ```
 
+## Acceso Inicial
+
+El sistema ya cuenta con un usuario administrador creado por defecto:
+- **Email**: `admin@sofkau.com`
+- **Password**: `Admin@SofkaU_2026!`
+
+Para ingresar al sistema como un usuario regular, es necesario **crear una cuenta nueva**.
+
 ## Mapeo de Puertos
 
 | Servicio | URL local | Puerto interno |
