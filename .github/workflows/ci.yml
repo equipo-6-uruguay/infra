@@ -41,29 +41,36 @@ jobs:
       - name: Create .env file
         run: cp .env.example .env
 
-      - name: Pull images
-        run: docker compose pull
+      - name: Clean up stale volumes
+        run: docker compose down -v
 
-      - name: Start services (Smoke Test)
+      - name: Pull infrastructure images
+        run: docker compose pull db users-db notification-db assignment-db rabbitmq
+
+      - name: Start infrastructure services (Smoke Test)
         run: |
-          # Levantamos todo y esperamos a que los healthchecks pasen (hasta 120s)
-          docker compose up -d --wait --wait-timeout 120
-          
+          # Solo levantamos los servicios de infraestructura (4 DBs + RabbitMQ).
+          # El runner de CI tiene ~7 GB de RAM; levantar los 15 contenedores del
+          # stack completo agota la memoria y provoca que los Postgres reciban
+          # un SIGTERM por OOM antes de terminar de iniciar.
+          docker compose up -d --wait --wait-timeout 120 \
+            db users-db notification-db assignment-db rabbitmq
+
       - name: Check container status
         run: |
-          # Revisamos si hay contenedores que no estén 'Up'
           echo "=== Container Status ==="
-          docker compose ps
-          
-          # Si algún contenedor salió (Exited), fallamos el CI
-          EXITED=$(docker compose ps -q | xargs docker inspect -f '{{ .State.Status }}' | grep -c -v "running" || true)
+          docker compose ps db users-db notification-db assignment-db rabbitmq
+
+          # Si algún contenedor de infra salió (Exited), fallamos el CI
+          INFRA_SERVICES="db users-db notification-db assignment-db rabbitmq"
+          EXITED=$(docker compose ps $INFRA_SERVICES -q | xargs docker inspect -f '{{ .State.Status }}' | grep -c -v "running" || true)
           if [ "$EXITED" -gt "0" ]; then
-            echo "❌ Fallo: Algunos contenedores no están corriendo."
+            echo "❌ Fallo: Algunos contenedores de infraestructura no están corriendo."
             echo "=== Logs ==="
-            docker compose logs --tail=50
+            docker compose logs --tail=50 db users-db notification-db assignment-db rabbitmq
             exit 1
           else
-            echo "✅ Todo en orden, contenedores corriendo."
+            echo "✅ Todo en orden, servicios de infraestructura corriendo."
           fi
 
       - name: Stop services

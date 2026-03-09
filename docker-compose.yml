@@ -18,6 +18,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: infra-ticket-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${TICKET_POSTGRES_DB:-sistema_tickets}
       POSTGRES_USER: ${TICKET_POSTGRES_USER:-postgres}
@@ -36,6 +37,7 @@ services:
   users-db:
     image: postgres:16-alpine
     container_name: infra-users-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${USERS_POSTGRES_DB:-users_db}
       POSTGRES_USER: ${USERS_POSTGRES_USER:-postgres}
@@ -176,6 +178,7 @@ services:
   notification-db:
     image: postgres:16-alpine
     container_name: infra-notification-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${NOTIFICATION_POSTGRES_DB:-notifications_db}
       POSTGRES_USER: ${NOTIFICATION_POSTGRES_USER:-notif_user}
@@ -263,6 +266,7 @@ services:
   assignment-db:
     image: postgres:16-alpine
     container_name: infra-assignment-db
+    shm_size: 128m
     environment:
       POSTGRES_DB: ${ASSIGNMENT_POSTGRES_DB:-assignment_db}
       POSTGRES_USER: ${ASSIGNMENT_POSTGRES_USER:-assignment_user}
