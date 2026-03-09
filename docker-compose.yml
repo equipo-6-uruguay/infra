@@ -113,7 +113,7 @@ services:
     restart: unless-stopped
   # --- Users Service ---
   users-service:
-    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-users-service
     environment:
@@ -145,7 +145,7 @@ services:
 
   # --- Users Consumer (RabbitMQ) ---
   users-consumer:
-    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-users-service:${USERS_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-users-consumer
     command: python users/messaging/consumer.py
@@ -192,7 +192,7 @@ services:
 
   # --- Notification Service ---
   notification-service:
-    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-notification-service
     environment:
@@ -225,7 +225,7 @@ services:
 
   # --- Notification Consumer (RabbitMQ) ---
   notification-consumer:
-    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-notification-service:${NOTIFICATION_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-notification-consumer
     command: python -m notifications.messaging.consumer
@@ -279,7 +279,7 @@ services:
 
   # --- Assignment Service ---
   assignment-service:
-    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-assignment-service
     environment:
@@ -311,7 +311,7 @@ services:
 
   # --- Assignment Consumer (RabbitMQ) ---
   assignment-consumer:
-    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-assignment-consumer
     command: python messaging/consumer.py
@@ -340,7 +340,7 @@ services:
 
   # --- Assignment Celery Worker ---
   assignment-celery:
-    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-develop}
+    image: ghcr.io/equipo-6-uruguay/backend-assignment-service:${ASSIGNMENT_IMAGE_TAG:-main}
     platform: linux/amd64
     container_name: infra-assignment-celery
     command: celery -A assessment_service worker --loglevel=info
